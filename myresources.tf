@@ -12,7 +12,38 @@ resource "aws_s3_bucket" "mytfbucket-prod" {
 
 
 # ------- AWS Default VPC --------# 
+# Below two resources (default) will not create new VPC/Subnets, but create existing ones
 resource "aws_default_vpc" "my_default_vpc" {}
+
+# ------- AWS Default Subnets --------# 
+resource "aws_default_subnet" "default_subnet_az1" {
+  availability_zone = "us-east-1a"
+  tags = {
+    "Terraform" : "True"
+  }
+}
+resource "aws_default_subnet" "default_subnet_az2" {
+  availability_zone = "us-east-1b"
+  tags = {
+    "Terraform" : "True"
+  }
+}
+
+
+# --------- ELB --------------#
+resource "aws_elb" "prod_web_alb" {
+  name            =  "prod-web-alb"
+  instances       =  aws_instance.web-instance.*.id  #note the .*. will use multiple Ec2 instances
+  subnets         =  [aws_default_subnet.default_subnet_az1.id, aws_default_subnet.default_subnet_az2.id]
+  security_groups =  [aws_security_group.tf_web_security.id]
+
+  listener {
+    instance_port     = 80
+    instance_protocol = "http"
+    lb_port           = 80
+    lb_protocol       = "http" 
+  }
+}
 
 
 # --------- Security Group--------#
@@ -47,6 +78,7 @@ resource "aws_security_group" "tf_web_security" {
   }
 }
 
+
 # -------- EC2 Instance ---------- #
 resource "aws_instance" "web-instance" {
   count = 2
@@ -64,7 +96,8 @@ resource "aws_instance" "web-instance" {
 }
 
 
-# ------- Elastic IP ------------- #
+
+#------- Elastic IP ------------- #
 
 resource "aws_eip_association" "eip_allocation" {
   instance_id   = aws_instance.web-instance.0.id
